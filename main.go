@@ -154,9 +154,9 @@ func write(writer *mmdbwriter.Tree, dataMap map[string][]*net.IPNet, output stri
 func release(source string, destination string, output string, ruleSetOutput string) error {
 
 	// Define the direct download URL for the Country.mmdb file.
-	const mmdbURL = "https://github.com/Masaiki/GeoIP2-CN/raw/release/Country.mmdb"
+	var mmdbURL = "https://github.com/Masaiki/GeoIP2-CN/raw/release/Country.mmdb"
 
-	destinationRelease, err := fetch(destination)
+	_, err := fetch(destination)
 	if err != nil {
 		log.Warn("missing destination latest release: ", err)
 	} else {
