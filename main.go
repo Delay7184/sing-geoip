@@ -66,16 +66,6 @@ func get(downloadURL *string) ([]byte, error) {
 	return io.ReadAll(response.Body)
 }
 
-func download(release *github.RepositoryRelease) ([]byte, error) {
-	geoipAsset := common.Find(release.Assets, func(it *github.ReleaseAsset) bool {
-		return *it.Name == "Country.mmdb"
-	})
-	if geoipAsset == nil {
-		return nil, E.New("Country.mmdb not found in upstream release ", release.Name)
-	}
-	return get(geoipAsset.BrowserDownloadURL)
-}
-
 func parse(binary []byte) (metadata maxminddb.Metadata, countryMap map[string][]*net.IPNet, err error) {
 	database, err := maxminddb.FromBytes(binary)
 	if err != nil {
@@ -91,7 +81,7 @@ func parse(binary []byte) (metadata maxminddb.Metadata, countryMap map[string][]
 		if err != nil {
 			return
 		}
-		// idk why
+		// idk why 
 		code := strings.ToLower(country.RegisteredCountry.IsoCode)
 		countryMap[code] = append(countryMap[code], ipNet)
 	}
@@ -162,24 +152,27 @@ func write(writer *mmdbwriter.Tree, dataMap map[string][]*net.IPNet, output stri
 }
 
 func release(source string, destination string, output string, ruleSetOutput string) error {
-	sourceRelease, err := fetch(source)
-	if err != nil {
-		return err
-	}
+
+	// Define the direct download URL for the Country.mmdb file.
+	const mmdbURL = "https://github.com/Masaiki/GeoIP2-CN/raw/release/Country.mmdb"
+
 	destinationRelease, err := fetch(destination)
 	if err != nil {
-		log.Warn("missing destination latest release")
+		log.Warn("missing destination latest release: ", err)
 	} else {
-		if os.Getenv("NO_SKIP") != "true" && strings.Contains(*destinationRelease.Name, *sourceRelease.Name) {
-			log.Info("already latest")
+		if os.Getenv("NO_SKIP") == "true" {
+			log.Info("Skipping build due to NO_SKIP environment variable.")
 			setActionOutput("skip", "true")
 			return nil
 		}
+		log.Info("NO_SKIP is not true, proceeding with download and build.")
 	}
-	binary, err := download(sourceRelease)
+
+	binary, err := get(&mmdbURL)
 	if err != nil {
 		return err
 	}
+
 	metadata, countryMap, err := parse(binary)
 	if err != nil {
 		return err
@@ -212,6 +205,7 @@ func release(source string, destination string, output string, ruleSetOutput str
 	if err != nil {
 		return err
 	}
+
 	for countryCode, ipNets := range countryMap {
 		var headlessRule option.DefaultHeadlessRule
 		headlessRule.IPCIDR = make([]string, 0, len(ipNets))
@@ -239,7 +233,6 @@ func release(source string, destination string, output string, ruleSetOutput str
 		outputRuleSet.Close()
 	}
 
-	setActionOutput("tag", *sourceRelease.Name)
 	return nil
 }
 
